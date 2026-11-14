@@ -192,13 +192,13 @@ function renderSelectedDay() {
       <div class="slot-list">${slots.map((slot) => {
         const reservation = reservationFor(selectedDate, area.id, slot.id);
         if (reservation) {
-          const detail = calendarData.canSeeDetails && reservation.unit_number
+          const detail = (calendarData.canSeeDetails || reservation.is_household) && reservation.unit_number
             ? `Vivienda ${escapeHtml(reservation.unit_number)} · ${escapeHtml(reservation.first_name)} ${escapeHtml(reservation.last_name)}`
             : "Reservado";
           const managesReservations = profile.permissions.includes("reservations.manage");
           const actions = reservation.status === "pending" && managesReservations
             ? `<span class="slot-actions"><button type="button" data-reservation-status="confirmed" data-reservation-id="${escapeHtml(reservation.id)}">Aprobar</button><button type="button" class="secondary" data-reservation-status="rejected" data-reservation-id="${escapeHtml(reservation.id)}">Rechazar</button></span>`
-            : reservation.is_own || managesReservations
+            : reservation.is_household || managesReservations
               ? `<button type="button" data-cancel-reservation="${escapeHtml(reservation.id)}">Cancelar</button>`
               : "";
           return `<article class="slot-row reserved"><div><strong>${escapeHtml(slot.name)}</strong><span>${slot.starts_at}–${slot.ends_at}</span></div><p>${detail}${reservation.status === "pending" ? " · Pendiente" : ""}</p>${actions}</article>`;

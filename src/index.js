@@ -928,23 +928,31 @@ async function handleReservationCalendar(request, env, url) {
       `SELECT r.id, r.area_id, r.slot_id, r.unit_id, r.created_by_person_id,
               r.reservation_date, r.starts_at, r.ends_at, r.status,
               r.guest_count, r.notes, u.number AS unit_number,
-              p.first_name, p.last_name
+              p.first_name, p.last_name,
+              EXISTS (
+                SELECT 1 FROM occupancies viewer_occupancy
+                 WHERE viewer_occupancy.person_id = ?
+                   AND viewer_occupancy.unit_id = r.unit_id
+                   AND viewer_occupancy.starts_on <= r.reservation_date
+                   AND (viewer_occupancy.ends_on IS NULL OR viewer_occupancy.ends_on >= r.reservation_date)
+              ) AS is_household
          FROM reservations r
          JOIN units u ON u.id = r.unit_id
          JOIN people p ON p.id = r.created_by_person_id
         WHERE r.reservation_date BETWEEN ? AND ?
           AND r.status IN ('pending', 'confirmed')
         ORDER BY r.reservation_date, r.starts_at`
-    ).bind(from, to).all(),
+    ).bind(context.person.id, from, to).all(),
   ]);
 
   const showDetails = context.permissions.includes("reservations.read_details");
   return json({
     areas: areasResult.results,
     slots: slotsResult.results,
-    reservations: reservationsResult.results.map((reservation) => showDetails ? {
+    reservations: reservationsResult.results.map((reservation) => (showDetails || Boolean(reservation.is_household)) ? {
       ...reservation,
       is_own: reservation.created_by_person_id === context.person.id,
+      is_household: Boolean(reservation.is_household),
     } : {
       id: reservation.id,
       area_id: reservation.area_id,
@@ -954,6 +962,7 @@ async function handleReservationCalendar(request, env, url) {
       ends_at: reservation.ends_at,
       status: reservation.status,
       is_own: reservation.created_by_person_id === context.person.id,
+      is_household: false,
     }),
     canSeeDetails: showDetails,
     holidays: holidaysBetween(from, to),
@@ -1114,7 +1123,13 @@ async function cancelReservation(request, env, reservationId) {
   ).bind(reservationId).first();
   if (!reservation) return json({ error: "reservation_not_found" }, 404);
   const manages = context.permissions.includes("reservations.manage");
-  if (!manages && reservation.created_by_person_id !== context.person.id) return json({ error: "forbidden" }, 403);
+  const householdMembership = manages ? true : await env.DB.prepare(
+    `SELECT 1 AS allowed FROM occupancies
+      WHERE person_id = ? AND unit_id = ?
+        AND starts_on <= ? AND (ends_on IS NULL OR ends_on >= ?)
+      LIMIT 1`
+  ).bind(context.person.id, reservation.unit_id, reservation.reservation_date, reservation.reservation_date).first();
+  if (!manages && !householdMembership) return json({ error: "forbidden" }, 403);
   if (!['pending', 'confirmed'].includes(reservation.status)) return json({ error: "reservation_not_active" }, 409);
   const cutoff = reservationInstant(reservation.reservation_date, reservation.starts_at).getTime()
     - Number(reservation.cancellation_cutoff_minutes) * 60000;
