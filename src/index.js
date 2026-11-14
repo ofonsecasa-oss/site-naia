@@ -268,11 +268,23 @@ async function createPerson(request, env) {
   const firstName = String(body?.firstName || "").trim();
   const lastName = String(body?.lastName || "").trim();
   const roleKeys = Array.isArray(body?.roles) ? [...new Set(body.roles.map(String))] : [];
+  const unitId = String(body?.unitId || "").trim();
+  const housingRelation = String(body?.housingRelation || "").trim();
+  const housingStartsOn = String(body?.housingStartsOn || "").trim();
+  const allowedHousingRelations = new Set(["owner_resident", "owner_nonresident", "tenant", "authorized_occupant"]);
 
   if (!email || !email.includes("@") || !firstName || !lastName) {
     return json({ error: "invalid_person" }, 400);
   }
   if (!(await validRoleKeys(env, roleKeys))) return json({ error: "invalid_roles" }, 400);
+  if ((unitId && (!allowedHousingRelations.has(housingRelation) || !isIsoDate(housingStartsOn)))
+      || (!unitId && (housingRelation || housingStartsOn))) {
+    return json({ error: "invalid_housing" }, 400);
+  }
+  if (unitId) {
+    const unit = await env.DB.prepare("SELECT id FROM units WHERE id = ? AND active = 1").bind(unitId).first();
+    if (!unit) return json({ error: "invalid_housing" }, 400);
+  }
 
   const personId = crypto.randomUUID();
   const invitationId = crypto.randomUUID();
@@ -284,12 +296,25 @@ async function createPerson(request, env) {
     ...roleKeys.map((roleKey) => env.DB.prepare(
       "INSERT INTO person_roles (person_id, role_key, assigned_by) VALUES (?, ?, ?)"
     ).bind(personId, roleKey, context.person.id)),
+    ...((unitId && ["owner_resident", "owner_nonresident"].includes(housingRelation)) ? [
+      env.DB.prepare(
+        "INSERT INTO ownerships (id, person_id, unit_id, starts_on) VALUES (?, ?, ?, ?)"
+      ).bind(crypto.randomUUID(), personId, unitId, housingStartsOn),
+    ] : []),
+    ...((unitId && housingRelation !== "owner_nonresident") ? [
+      env.DB.prepare(
+        `INSERT INTO occupancies (id, person_id, unit_id, occupancy_type, starts_on, verified_by)
+         VALUES (?, ?, ?, ?, ?, ?)`
+      ).bind(crypto.randomUUID(), personId, unitId, housingRelation, housingStartsOn, context.person.id),
+    ] : []),
     env.DB.prepare(
       "INSERT INTO invitations (id, person_id, email, status, created_by) VALUES (?, ?, ?, 'pending', ?)"
     ).bind(invitationId, personId, email, context.person.id),
     env.DB.prepare(
       "INSERT INTO audit_events (id, actor_person_id, action, target_type, target_id, details_json) VALUES (?, ?, 'person.created', 'person', ?, ?)"
-    ).bind(auditId, context.person.id, personId, JSON.stringify({ email, roles: roleKeys })),
+    ).bind(auditId, context.person.id, personId, JSON.stringify({
+      email, roles: roleKeys, unitId: unitId || null, housingRelation: housingRelation || null,
+    })),
   ];
 
   try {
@@ -1306,6 +1331,15 @@ async function listUnits(request, env) {
   })) });
 }
 
+async function listHousingUnits(request, env) {
+  const context = await authorizationContext(request, env, "people.read");
+  if (context.error) return context.error;
+  const units = await env.DB.prepare(
+    "SELECT id, number FROM units WHERE active = 1 ORDER BY CAST(number AS INTEGER), number"
+  ).all();
+  return json({ units: units.results });
+}
+
 async function updateUnitReservationAccess(request, env, unitId) {
   const context = await authorizationContext(request, env, "reservations.manage");
   if (context.error) return context.error;
@@ -1417,6 +1451,7 @@ async function handleApi(request, env, url) {
   if (url.pathname === "/api/admin/reservable-areas" && request.method === "GET") return listReservableAreas(request, env);
   if (url.pathname === "/api/admin/reservable-areas" && request.method === "POST") return createReservableArea(request, env);
   if (url.pathname === "/api/admin/units" && request.method === "GET") return listUnits(request, env);
+  if (url.pathname === "/api/admin/housing-units" && request.method === "GET") return listHousingUnits(request, env);
 
   const rolesMatch = url.pathname.match(/^\/api\/admin\/people\/([^/]+)\/roles$/);
   if (rolesMatch && request.method === "PUT") return replaceRoles(request, env, rolesMatch[1]);

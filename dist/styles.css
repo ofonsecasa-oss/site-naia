@@ -287,18 +287,21 @@ footer span { color: #9a918d; font-size: 12px; }
 .admin-card-heading { margin-bottom: 26px; display: flex; justify-content: space-between; align-items: end; gap: 20px; }
 .admin-card-heading > span { color: #978b85; font-size: 12px; }
 .invite-form { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.invite-form, .invite-form > *, .invite-housing-grid > *, .role-options, .role-option, .role-option span { min-width: 0; }
 .invite-form label > span, .invite-form legend { display: block; margin-bottom: 8px; color: #635b57; font-size: 12px; font-weight: 750; }
-.invite-form input[type="text"], .invite-form input[type="email"], .invite-form input:not([type]) { width: 100%; min-height: 48px; padding: 0 14px; border: 1px solid #d9cec8; border-radius: 11px; background: white; color: var(--ink); }
+.invite-form input[type="text"], .invite-form input[type="email"], .invite-form input[type="date"], .invite-form input:not([type]), .invite-form select { box-sizing: border-box; width: 100%; max-width: 100%; min-height: 48px; padding: 0 14px; border: 1px solid #d9cec8; border-radius: 11px; background: white; color: var(--ink); }
 .wide-field { grid-column: 1 / -1; }
 .invite-form fieldset { margin: 4px 0 0; padding: 0; border: 0; }
 .invite-form fieldset > small { display: block; margin-top: 12px; color: var(--muted); }
+.invite-housing-grid { display: grid; grid-template-columns: 1fr 1fr minmax(150px, .55fr); gap: 12px; }
+.invite-form :disabled { color: #9b918c; background: #f3efec; }
 .role-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .role-option { min-height: 92px; padding: 15px; display: flex; gap: 12px; align-items: start; border: 1px solid var(--line); border-radius: 13px; background: var(--paper); cursor: pointer; }
 .role-option:has(input:checked) { border-color: #c98e80; background: #fcf0eb; }
 .role-option input { margin-top: 3px; accent-color: var(--rust); }
-.role-option span { display: grid; gap: 5px; }
-.role-option strong { font-size: 13px; }
-.role-option small { color: var(--muted); font-size: 11px; line-height: 1.4; }
+.role-option span { display: grid; gap: 5px; overflow-wrap: anywhere; }
+.role-option strong { display: block; font-size: 13px; }
+.role-option small { display: block; color: var(--muted); font-size: 11px; line-height: 1.4; }
 .form-actions { min-height: 46px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
 .form-actions p { margin: 0; color: var(--muted); font-size: 13px; }
 .primary-action, .secondary-action { min-height: 43px; border-radius: 10px; padding: 0 17px; cursor: pointer; }
@@ -341,7 +344,8 @@ button:disabled { cursor: wait; opacity: .58; }
 
 @media (max-width: 1100px) {
   .site-header { grid-template-columns: 1fr auto; }
-  .main-nav { position: fixed; z-index: 40; left: 12px; right: 12px; bottom: 12px; display: flex; justify-content: center; gap: 4px; padding: 7px; overflow-x: auto; border: 1px solid var(--line); border-radius: 16px; background: rgba(255,253,251,.96); box-shadow: 0 16px 45px rgba(45,33,29,.18); backdrop-filter: blur(12px); }
+  .main-nav { box-sizing: border-box; position: fixed; z-index: 40; left: max(12px, env(safe-area-inset-left)); right: max(12px, env(safe-area-inset-right)); bottom: max(12px, env(safe-area-inset-bottom)); display: flex; justify-content: flex-start; gap: 4px; max-width: calc(100vw - 24px); padding: 7px; overflow-x: auto; overscroll-behavior-inline: contain; scrollbar-width: none; border: 1px solid var(--line); border-radius: 16px; background: rgba(255,253,251,.96); box-shadow: 0 16px 45px rgba(45,33,29,.18); backdrop-filter: blur(12px); }
+  .main-nav::-webkit-scrollbar { display: none; }
   .main-nav .nav-link { flex: 0 0 auto; padding: 9px 11px; font-size: 12px; }
   .main-nav .future-link { display: none; }
   body { padding-bottom: 78px; }
@@ -367,8 +371,11 @@ button:disabled { cursor: wait; opacity: .58; }
   .admin-heading { align-items: start; flex-direction: column; }
   .admin-heading > p { text-align: left; }
   .bootstrap-card, .admin-card-heading, .form-actions { align-items: stretch; flex-direction: column; }
-  .invite-form, .role-options { grid-template-columns: 1fr; }
+  .invite-form, .role-options, .invite-housing-grid { grid-template-columns: minmax(0, 1fr); }
   .invite-form > * { grid-column: 1; }
+  .invite-card, .people-card { padding: 22px 16px; overflow: hidden; }
+  .role-option { box-sizing: border-box; width: 100%; }
+  .form-actions .primary-action { width: 100%; white-space: normal; }
   .people-table th:nth-child(2), .people-table td:nth-child(2) { display: none; }
   .site-header { height: 72px; padding: 0 18px; }
   .brand { width: 165px; }

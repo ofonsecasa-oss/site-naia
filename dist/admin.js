@@ -12,6 +12,9 @@ const roleForm = document.querySelector("#role-form");
 const dialogRoleOptions = document.querySelector("#dialog-role-options");
 const housingDialog = document.querySelector("#housing-dialog");
 const housingForm = document.querySelector("#housing-form");
+const inviteUnit = document.querySelector("#invite-unit");
+const inviteHousingRelation = document.querySelector("#invite-housing-relation");
+const inviteHousingStart = document.querySelector("#invite-housing-start");
 
 let roles = [];
 let people = [];
@@ -41,6 +44,7 @@ function errorMessage(code) {
   return ({
     email_already_exists: "Ya existe una persona con ese correo.",
     invitation_failed: "La persona se creó, pero Clerk no pudo enviar la invitación.",
+    invalid_housing: "Selecciona una vivienda, relación y fecha válidas.",
     last_administrator: "No se puede retirar o desactivar al último administrador activo.",
     forbidden: "Tu cuenta no tiene permiso para realizar esta acción.",
     bootstrap_email_mismatch: "Tu correo no coincide con el administrador inicial configurado.",
@@ -69,6 +73,21 @@ async function loadRoles() {
   const payload = await api("/api/admin/roles");
   roles = payload.roles;
   inviteRoleOptions.innerHTML = roleCheckboxes([], "invite-role");
+}
+
+async function loadHousingUnits() {
+  const payload = await api("/api/admin/housing-units");
+  inviteUnit.innerHTML = `<option value="">Sin vivienda asignada</option>${payload.units.map((unit) =>
+    `<option value="${escapeHtml(unit.id)}">Vivienda ${escapeHtml(unit.number)}</option>`).join("")}`;
+}
+
+function syncInviteHousingFields() {
+  const hasUnit = Boolean(inviteUnit.value);
+  inviteHousingRelation.disabled = !hasUnit;
+  inviteHousingStart.disabled = !hasUnit;
+  inviteHousingStart.required = hasUnit;
+  if (hasUnit && !inviteHousingStart.value) inviteHousingStart.value = currentCostaRicaDate();
+  if (!hasUnit) inviteHousingStart.value = "";
 }
 
 function renderPeople() {
@@ -119,7 +138,7 @@ document.addEventListener("naia:authorization", async (event) => {
   adminStatus.innerHTML = `<strong>Sesión autorizada.</strong><p>${escapeHtml(profile.person.first_name)}, los cambios de funciones se aplican inmediatamente.</p>`;
   adminWorkspace.hidden = false;
   try {
-    await Promise.all([loadRoles(), loadPeople()]);
+    await Promise.all([loadRoles(), loadHousingUnits(), loadPeople()]);
   } catch (loadError) {
     adminStatus.innerHTML = `<strong>No se pudieron cargar los usuarios.</strong><p>${escapeHtml(loadError.message)}</p>`;
   }
@@ -127,6 +146,7 @@ document.addEventListener("naia:authorization", async (event) => {
 
 bootstrapButton.addEventListener("click", initializeAdmin);
 document.querySelector("#refresh-people").addEventListener("click", loadPeople);
+inviteUnit.addEventListener("change", syncInviteHousingFields);
 
 inviteForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -142,9 +162,13 @@ inviteForm.addEventListener("submit", async (event) => {
         lastName: formData.get("lastName"),
         email: formData.get("email"),
         roles: formData.getAll("roles"),
+        unitId: formData.get("unitId"),
+        housingRelation: formData.get("unitId") ? formData.get("housingRelation") : "",
+        housingStartsOn: formData.get("unitId") ? formData.get("housingStartsOn") : "",
       }),
     });
     inviteForm.reset();
+    syncInviteHousingFields();
     inviteFeedback.textContent = "Invitación enviada correctamente.";
     await loadPeople();
   } catch (error) {

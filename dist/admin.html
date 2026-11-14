@@ -70,6 +70,14 @@
               <label><span>Apellidos</span><input name="lastName" autocomplete="family-name" required /></label>
               <label class="wide-field"><span>Correo electrónico</span><input name="email" type="email" autocomplete="email" required /></label>
               <fieldset class="wide-field"><legend>Funciones del sistema</legend><div class="role-options" id="invite-role-options"></div><small>Propietario, inquilino y residente se asignarán como relaciones con una unidad, no como funciones globales.</small></fieldset>
+              <fieldset class="wide-field invite-housing"><legend>Vivienda y relación</legend>
+                <div class="invite-housing-grid">
+                  <label><span>Vivienda</span><select name="unitId" id="invite-unit"><option value="">Sin vivienda asignada</option></select></label>
+                  <label><span>Relación</span><select name="housingRelation" id="invite-housing-relation" disabled><option value="owner_resident">Propietario residente</option><option value="owner_nonresident">Propietario no residente</option><option value="tenant">Inquilino</option><option value="authorized_occupant">Ocupante autorizado</option></select></label>
+                  <label><span>Desde</span><input name="housingStartsOn" id="invite-housing-start" type="date" disabled /></label>
+                </div>
+                <small>La vivienda quedará asignada desde el momento de enviar la invitación. Puedes cambiarla posteriormente.</small>
+              </fieldset>
               <div class="form-actions wide-field"><p id="invite-feedback" role="status"></p><button class="primary-action" type="submit">Crear e invitar</button></div>
             </form>
           </section>
