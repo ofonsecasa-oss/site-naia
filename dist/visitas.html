@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Preautorización de visitas de Naia Guachipelín." /><meta name="theme-color" content="#9f3f30" />
+    <title>Naia Guachipelín · Visitas</title><link rel="icon" href="./assets/naia-logo.jpg" /><link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body class="auth-pending">
+    <section class="auth-gate" id="auth-gate" aria-labelledby="auth-title">
+      <div class="auth-brand-panel"><img class="auth-watermark" src="./assets/naia-watermark.png" alt="" aria-hidden="true" /><a class="auth-brand" href="./" aria-label="Naia Guachipelín"><img src="./assets/naia-logo.jpg" alt="Naia Guachipelín" /></a><div class="auth-welcome"><p class="eyebrow">Portal de la comunidad</p><h1 id="auth-title">Tus visitas,<br /><em>ya esperadas.</em></h1><p>Preautoriza ingresos para tu vivienda.</p></div><p class="auth-footnote">Acceso exclusivo para usuarios autorizados.</p></div>
+      <div class="auth-form-panel"><div class="auth-loading" id="auth-loading" role="status"><span class="auth-spinner" aria-hidden="true"></span><p>Preparando acceso seguro…</p></div><div id="clerk-sign-in" class="clerk-sign-in" hidden></div><div id="auth-error" class="auth-error" role="alert" hidden><strong>No pudimos cargar el acceso.</strong><p>Revisa tu conexión e inténtalo nuevamente.</p><button type="button" onclick="window.location.reload()">Reintentar</button></div></div>
+    </section>
+    <div class="page-shell" id="portal-shell" hidden>
+      <header class="site-header"><a class="brand" href="./" aria-label="Naia Guachipelín, inicio"><img src="./assets/naia-logo.jpg" alt="Naia Guachipelín" /></a><nav class="main-nav" aria-label="Navegación principal"><a class="nav-link" href="./">Documentos</a><a class="nav-link" href="./reservations.html">Reservas</a><a class="nav-link active" href="./visitas" aria-current="page">Visitas</a><a class="nav-link" href="./seguridad" data-permission="visitors.read" hidden>Seguridad</a><a class="nav-link" href="./admin.html" data-permission="people.read" hidden>Administración</a></nav><div class="resident-session"><div id="clerk-user-button" class="clerk-user-button"></div><span class="resident-copy"><strong id="resident-name">Residente</strong><small>Naia Guachipelín</small></span></div></header>
+      <main class="security-main">
+        <section class="security-heading"><div><p class="eyebrow">Mi vivienda</p><h1>Preautorizar visitas</h1><p>Informa con anticipación quién llegará y cuándo.</p></div></section>
+        <section class="visitor-resident-section" data-permission="visitors.create" hidden>
+          <div class="visitor-resident-layout">
+            <form class="visitor-form security-card" id="visitor-form">
+              <div class="visitor-form-grid">
+                <label><span>Vivienda</span><select name="unitId" id="visitor-unit" required></select></label>
+                <label><span>Tipo de visita</span><select name="visitorType" required><option value="guest">Invitado</option><option value="delivery">Entrega o comida</option><option value="domestic_worker">Servicio doméstico</option><option value="service">Servicio técnico</option><option value="contractor">Contratista</option><option value="transport">Transporte</option><option value="other">Otro</option></select></label>
+                <label class="wide-field"><span>Nombre de la persona o servicio</span><input name="visitorName" maxlength="120" placeholder="Ej. María Rodríguez o Uber Eats" required /></label>
+                <fieldset class="wide-field schedule-choice"><legend>Frecuencia</legend><label><input type="radio" name="scheduleType" value="one_time" checked /> Una vez</label><label><input type="radio" name="scheduleType" value="weekly" /> Semanal</label></fieldset>
+                <label class="wide-field" data-schedule="one_time"><span>Fecha y hora esperada</span><input name="oneTimeAt" type="datetime-local" /></label>
+                <div class="wide-field recurring-fields" data-schedule="weekly" hidden>
+                  <label><span>Desde</span><input name="startDate" type="date" /></label><label data-end-date><span>Hasta</span><input name="endDate" type="date" /></label><label><span>Hora</span><input name="recurringTime" type="time" /></label>
+                  <label class="open-ended-toggle"><input type="checkbox" name="openEnded" /> Sin fecha final</label>
+                  <fieldset class="weekday-picker"><legend>Días</legend><label><input type="checkbox" name="weekdays" value="1" /> Lun</label><label><input type="checkbox" name="weekdays" value="2" /> Mar</label><label><input type="checkbox" name="weekdays" value="3" /> Mié</label><label><input type="checkbox" name="weekdays" value="4" /> Jue</label><label><input type="checkbox" name="weekdays" value="5" /> Vie</label><label><input type="checkbox" name="weekdays" value="6" /> Sáb</label><label><input type="checkbox" name="weekdays" value="0" /> Dom</label></fieldset>
+                </div>
+                <label><span>Placa <small>(opcional)</small></span><input name="vehiclePlate" maxlength="30" /></label><label class="wide-field"><span>Indicaciones para seguridad <small>(opcional)</small></span><textarea name="notes" maxlength="800" rows="3" placeholder="Empresa, persona de contacto u otra referencia útil."></textarea></label>
+              </div>
+              <p class="dialog-feedback" id="visitor-feedback" role="status"></p><button class="primary-action" type="submit">Guardar preautorización</button>
+            </form>
+            <section class="security-card own-visitors"><div class="security-section-heading compact"><div><p class="eyebrow">Próximas</p><h2>Mis preautorizaciones</h2></div></div><div id="own-visitors-list"><p class="empty-day">Cargando…</p></div></section>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script defer crossorigin="anonymous" src="https://champion-asp-3434.clerk.accounts.dev/npm/@clerk/ui@1/dist/ui.browser.js" type="text/javascript"></script><script defer crossorigin="anonymous" data-clerk-publishable-key="pk_test_Y2hhbXBpb24tYXNwLTM0MzQuY2xlcmsuYWNjb3VudHMuZGV2JA" src="https://champion-asp-3434.clerk.accounts.dev/npm/@clerk/clerk-js@6/dist/clerk.browser.js" type="text/javascript"></script><script defer src="./auth.js"></script><script defer src="./visitas.js"></script>
+  </body>
+</html>

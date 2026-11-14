@@ -1,0 +1,25 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "naia-condominio-portal",
+  "main": "./src/index.js",
+  "compatibility_date": "2026-11-13",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*", "/documents/*"]
+  },
+  "vars": {
+    "CLERK_PUBLISHABLE_KEY": "pk_test_Y2hhbXBpb24tYXNwLTM0MzQuY2xlcmsuYWNjb3VudHMuZGV2JA",
+    "AUTHORIZED_PARTIES": "http://localhost:8787,http://127.0.0.1:8787,https://naiaguachipelin.com,https://www.naiaguachipelin.com",
+    "APP_URL": "http://localhost:8787"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "naia-condominio",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ]
+}
