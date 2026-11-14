@@ -4,22 +4,39 @@
   "main": "./src/index.js",
   "compatibility_date": "2026-11-13",
   "compatibility_flags": ["nodejs_compat"],
+  "routes": [
+    {
+      "pattern": "naiaguachipelin.com/*",
+      "zone_name": "naiaguachipelin.com"
+    },
+    {
+      "pattern": "www.naiaguachipelin.com/*",
+      "zone_name": "naiaguachipelin.com"
+    }
+  ],
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
-    "run_worker_first": ["/api/*", "/documents/*"]
+    "run_worker_first": ["/api/*", "/documents/*", "/clerk-bootstrap.js"]
   },
   "vars": {
-    "CLERK_PUBLISHABLE_KEY": "pk_test_Y2hhbXBpb24tYXNwLTM0MzQuY2xlcmsuYWNjb3VudHMuZGV2JA",
+    "CLERK_PUBLISHABLE_KEY": "pk_live_Y2xlcmsubmFpYWd1YWNoaXBlbGluLmNvbSQ",
+    "CLERK_DEVELOPMENT_PUBLISHABLE_KEY": "pk_test_Y2hhbXBpb24tYXNwLTM0MzQuY2xlcmsuYWNjb3VudHMuZGV2JA",
     "AUTHORIZED_PARTIES": "http://localhost:8787,http://127.0.0.1:8787,https://naiaguachipelin.com,https://www.naiaguachipelin.com",
-    "APP_URL": "http://localhost:8787"
+    "APP_URL": "https://naiaguachipelin.com"
   },
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "naia-condominio",
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_name": "naia-portal-prod",
+      "database_id": "68f55192-9169-4152-a491-c86792d9dc20",
       "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "DOCUMENTS",
+      "bucket_name": "naia-documents-prod"
     }
   ]
 }

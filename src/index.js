@@ -24,6 +24,65 @@ function clerk(env) {
   });
 }
 
+function clerkFrontendDomain(publishableKey) {
+  const encoded = String(publishableKey || "").replace(/^pk_(?:test|live)_/, "");
+  if (!encoded) return "";
+  try {
+    return atob(encoded).replace(/\$$/, "");
+  } catch {
+    return "";
+  }
+}
+
+function handleClerkBootstrap(request, env) {
+  const hostname = new URL(request.url).hostname;
+  const isLocal = hostname === "localhost" || hostname === "127.0.0.1";
+  const publishableKey = String(
+    isLocal ? env.CLERK_DEVELOPMENT_PUBLISHABLE_KEY : env.CLERK_PUBLISHABLE_KEY || ""
+  );
+  const frontendDomain = clerkFrontendDomain(publishableKey);
+  if (!publishableKey || !frontendDomain) {
+    return new Response("console.error('Clerk no está configurado');", {
+      status: 503,
+      headers: { "content-type": "application/javascript; charset=utf-8", "cache-control": "no-store" },
+    });
+  }
+
+  const script = `(() => {
+    const bootstrap = document.currentScript;
+    const pageScript = bootstrap?.dataset.pageScript;
+    const load = (src, attributes = {}) => new Promise((resolve, reject) => {
+      const element = document.createElement("script");
+      element.src = src;
+      element.defer = true;
+      Object.entries(attributes).forEach(([name, value]) => element.setAttribute(name, value));
+      element.onload = resolve;
+      element.onerror = () => reject(new Error("No se pudo cargar " + src));
+      document.head.appendChild(element);
+    });
+
+    (async () => {
+      await load(${JSON.stringify(`https://${frontendDomain}/npm/@clerk/ui@1/dist/ui.browser.js`)}, { crossorigin: "anonymous" });
+      await load(${JSON.stringify(`https://${frontendDomain}/npm/@clerk/clerk-js@6/dist/clerk.browser.js`)}, {
+        crossorigin: "anonymous",
+        "data-clerk-publishable-key": ${JSON.stringify(publishableKey)},
+      });
+      await load("/auth.js");
+      if (pageScript) await load(pageScript);
+    })().catch((error) => {
+      console.error("No se pudo iniciar la autenticación", error);
+      window.dispatchEvent(new Event("naia:clerk-error"));
+    });
+  })();`;
+
+  return new Response(script, {
+    headers: {
+      "content-type": "application/javascript; charset=utf-8",
+      "cache-control": "no-store",
+    },
+  });
+}
+
 async function authenticate(request, env) {
   if (!env.CLERK_SECRET_KEY) return { error: json({ error: "auth_not_configured" }, 503) };
 
@@ -1397,6 +1456,7 @@ export default {
   async fetch(request, env) {
     try {
       const url = new URL(request.url);
+      if (url.pathname === "/clerk-bootstrap.js") return handleClerkBootstrap(request, env);
       if (url.pathname.startsWith("/api/")) return await handleApi(request, env, url);
       if (url.pathname.startsWith("/documents/")) return await protectDocument(request, env);
       return env.ASSETS.fetch(request);
