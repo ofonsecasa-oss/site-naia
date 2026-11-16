@@ -587,12 +587,17 @@ async function listOwnVisitors(request, env) {
   const context = await authorizationContext(request, env, "visitors.create");
   if (context.error) return context.error;
   const units = await eligibleUnits(env, context.person.id, costaRicaDate());
+  if (!units.length) return json({ units, authorizations: [] });
+  const placeholders = units.map(() => "?").join(",");
   const authorizations = await env.DB.prepare(
-    `SELECT va.*, u.number AS unit_number
-       FROM visitor_authorizations va JOIN units u ON u.id = va.unit_id
-      WHERE va.created_by_person_id = ?
+    `SELECT va.*, u.number AS unit_number, p.first_name AS created_by_first_name,
+            p.last_name AS created_by_last_name
+       FROM visitor_authorizations va
+       JOIN units u ON u.id = va.unit_id
+       JOIN people p ON p.id = va.created_by_person_id
+      WHERE va.unit_id IN (${placeholders})
       ORDER BY va.active DESC, va.created_at DESC`
-  ).bind(context.person.id).all();
+  ).bind(...units.map((unit) => unit.id)).all();
   return json({ units, authorizations: authorizations.results });
 }
 
@@ -645,6 +650,23 @@ async function createVisitorAuthorization(request, env) {
     return json({ error: "not_current_resident" }, 403);
   }
 
+  const weekdaysJson = JSON.stringify(weekdays);
+  const duplicate = await env.DB.prepare(
+    `SELECT id FROM visitor_authorizations
+      WHERE unit_id = ? AND active = 1
+        AND lower(trim(visitor_name)) = lower(trim(?))
+        AND visitor_type = ? AND schedule_type = ?
+        AND (
+          (? = 'one_time' AND one_time_at = ?)
+          OR
+          (? = 'weekly' AND recurring_time = ? AND weekdays_json = ?
+            AND recurring_start_date <= ? AND recurring_end_date >= ?)
+        )
+      LIMIT 1`
+  ).bind(unitId, visitorName, visitorType, scheduleType,
+    scheduleType, oneTimeAt, scheduleType, recurringTime, weekdaysJson, endDate, startDate).first();
+  if (duplicate) return json({ error: "duplicate_visitor_authorization", authorizationId: duplicate.id }, 409);
+
   const authorizationId = crypto.randomUUID();
   await env.DB.batch([
     env.DB.prepare(
@@ -654,7 +676,7 @@ async function createVisitorAuthorization(request, env) {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(authorizationId, unitId, context.person.id, visitorName, visitorType, vehiclePlate, notes,
       scheduleType, oneTimeAt, scheduleType === "weekly" ? startDate : null,
-      scheduleType === "weekly" ? endDate : null, recurringTime, JSON.stringify(weekdays),
+      scheduleType === "weekly" ? endDate : null, recurringTime, weekdaysJson,
       scheduleType === "weekly" && openEnded ? 1 : 0),
     env.DB.prepare(
       `INSERT INTO audit_events (id, actor_person_id, action, target_type, target_id, details_json)
@@ -668,11 +690,17 @@ async function cancelVisitorAuthorization(request, env, authorizationId) {
   const context = await authorizationContext(request, env, "visitors.create");
   if (context.error) return context.error;
   const authorization = await env.DB.prepare(
-    "SELECT id, created_by_person_id, active FROM visitor_authorizations WHERE id = ?"
+    "SELECT id, unit_id, created_by_person_id, active FROM visitor_authorizations WHERE id = ?"
   ).bind(authorizationId).first();
   if (!authorization) return json({ error: "visitor_authorization_not_found" }, 404);
   const manages = context.permissions.includes("visitors.manage");
-  if (!manages && authorization.created_by_person_id !== context.person.id) return json({ error: "forbidden" }, 403);
+  const householdMembership = manages ? true : await env.DB.prepare(
+    `SELECT 1 AS allowed FROM occupancies
+      WHERE person_id = ? AND unit_id = ?
+        AND starts_on <= ? AND (ends_on IS NULL OR ends_on >= ?)
+      LIMIT 1`
+  ).bind(context.person.id, authorization.unit_id, costaRicaDate(), costaRicaDate()).first();
+  if (!manages && !householdMembership) return json({ error: "forbidden" }, 403);
   if (!authorization.active) return json({ error: "visitor_authorization_inactive" }, 409);
   await env.DB.batch([
     env.DB.prepare(
@@ -1442,9 +1470,133 @@ async function updatePersonHousing(request, env, personId) {
   return json({ ok: true });
 }
 
+const documentCategories = new Set(["Finanzas", "Presupuestos", "Asambleas", "Seguros", "Reglamentos", "Legal", "Otros"]);
+const documentFileTypes = {
+  pdf: { label: "PDF", mime: "application/pdf" },
+  xlsx: { label: "XLSX", mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" },
+  xls: { label: "XLS", mime: "application/vnd.ms-excel" },
+  docx: { label: "DOCX", mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" },
+  doc: { label: "DOC", mime: "application/msword" },
+  png: { label: "Imagen", mime: "image/png" },
+  jpg: { label: "Imagen", mime: "image/jpeg" },
+  jpeg: { label: "Imagen", mime: "image/jpeg" },
+  webp: { label: "Imagen", mime: "image/webp" },
+};
+
+function humanFileSize(bytes) {
+  if (bytes >= 1048576) return `${(bytes / 1048576).toFixed(bytes >= 10485760 ? 0 : 1)} MB`;
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
+function displayDocumentDate(date) {
+  return new Intl.DateTimeFormat("es-CR", { day: "numeric", month: "short", year: "numeric", timeZone: "America/Costa_Rica" })
+    .format(new Date(`${date}T12:00:00-06:00`)).replace(/\./g, "");
+}
+
+async function listDocuments(request, env) {
+  const context = await authorizationContext(request, env, "documents.read");
+  if (context.error) return context.error;
+  const result = await env.DB.prepare(
+    `SELECT id, name, description, category, tags_json, file_type, size_bytes,
+            document_date, display_date
+       FROM documents WHERE active = 1
+      ORDER BY document_date DESC, name COLLATE NOCASE`
+  ).all();
+  return json({ documents: result.results.map((document) => {
+    let tags = [];
+    try { tags = JSON.parse(document.tags_json); } catch { tags = []; }
+    return {
+      name: document.name,
+      description: document.description,
+      category: document.category,
+      type: document.file_type,
+      date: document.document_date,
+      displayDate: document.display_date,
+      size: humanFileSize(Number(document.size_bytes)),
+      sizeBytes: Number(document.size_bytes),
+      tags,
+      url: `/documents/${encodeURIComponent(document.id)}`,
+    };
+  }) });
+}
+
+async function uploadDocument(request, env) {
+  const context = await authorizationContext(request, env, "documents.manage");
+  if (context.error) return context.error;
+  const form = await request.formData().catch(() => null);
+  const file = form?.get("file");
+  const name = String(form?.get("name") || "").trim().slice(0, 180);
+  const description = String(form?.get("description") || "").trim().slice(0, 600);
+  const category = String(form?.get("category") || "").trim();
+  const documentDate = String(form?.get("documentDate") || "").trim();
+  const tags = [...new Set(String(form?.get("tags") || "").split(",")
+    .map((tag) => tag.trim()).filter(Boolean).slice(0, 20))];
+  const originalFilename = String(file?.name || "").replace(/[\r\n"]/g, "_").slice(0, 180);
+  const extension = originalFilename.includes(".") ? originalFilename.split(".").pop().toLowerCase() : "";
+  const fileType = documentFileTypes[extension];
+  const validFile = file && typeof file.arrayBuffer === "function" && Number(file.size) > 0 && Number(file.size) <= 30 * 1024 * 1024;
+  if (!validFile || !name || !documentCategories.has(category) || !isIsoDate(documentDate) || !fileType) {
+    return json({ error: "invalid_document" }, 400);
+  }
+
+  const documentId = crypto.randomUUID();
+  const safeBase = originalFilename.replace(/\.[^.]+$/, "").normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 80) || "documento";
+  const storageKey = `uploads/${documentId}/${safeBase}.${extension}`;
+  await env.DOCUMENTS.put(storageKey, await file.arrayBuffer(), {
+    httpMetadata: { contentType: fileType.mime },
+    customMetadata: { originalFilename, uploadedBy: context.person.id },
+  });
+
+  try {
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO documents
+          (id, name, description, category, tags_json, file_type, mime_type, original_filename,
+           storage_backend, storage_key, size_bytes, document_date, display_date, created_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'r2', ?, ?, ?, ?, ?)`
+      ).bind(documentId, name, description, category, JSON.stringify(tags), fileType.label, fileType.mime,
+        originalFilename, storageKey, Number(file.size), documentDate, displayDocumentDate(documentDate), context.person.id),
+      env.DB.prepare(
+        `INSERT INTO audit_events (id, actor_person_id, action, target_type, target_id, details_json)
+         VALUES (?, ?, 'document.uploaded', 'document', ?, ?)`
+      ).bind(crypto.randomUUID(), context.person.id, documentId, JSON.stringify({ name, category, originalFilename })),
+    ]);
+  } catch (error) {
+    await env.DOCUMENTS.delete(storageKey);
+    throw error;
+  }
+  return json({ ok: true, documentId }, 201);
+}
+
 async function protectDocument(request, env) {
   const context = await authorizationContext(request, env, "documents.read");
   if (context.error) return context.error;
+  const url = new URL(request.url);
+  const identifier = decodeURIComponent(url.pathname.slice("/documents/".length));
+  if (identifier && !identifier.includes("/")) {
+    const document = await env.DB.prepare(
+      `SELECT id, storage_backend, storage_key, mime_type, original_filename
+         FROM documents WHERE id = ? AND active = 1`
+    ).bind(identifier).first();
+    if (document?.storage_backend === "r2") {
+      const object = await env.DOCUMENTS.get(document.storage_key);
+      if (!object) return json({ error: "document_not_found" }, 404);
+      return new Response(object.body, {
+        headers: {
+          "content-type": document.mime_type,
+          "content-length": String(object.size),
+          "content-disposition": `inline; filename*=UTF-8''${encodeURIComponent(document.original_filename)}`,
+          "cache-control": "private, max-age=300",
+          etag: object.httpEtag,
+        },
+      });
+    }
+    if (document?.storage_backend === "asset") {
+      const assetUrl = new URL(`/${document.storage_key}`, request.url);
+      return env.ASSETS.fetch(new Request(assetUrl, request));
+    }
+  }
   return env.ASSETS.fetch(request);
 }
 
@@ -1454,6 +1606,8 @@ async function handleApi(request, env, url) {
   if (url.pathname === "/api/admin/roles" && request.method === "GET") return handleRoles(request, env);
   if (url.pathname === "/api/admin/people" && request.method === "GET") return listPeople(request, env);
   if (url.pathname === "/api/admin/people" && request.method === "POST") return createPerson(request, env);
+  if (url.pathname === "/api/documents" && request.method === "GET") return listDocuments(request, env);
+  if (url.pathname === "/api/admin/documents" && request.method === "POST") return uploadDocument(request, env);
   if (url.pathname === "/api/reservations/calendar" && request.method === "GET") return handleReservationCalendar(request, env, url);
   if (url.pathname === "/api/reservations/eligibility" && request.method === "GET") return handleReservationEligibility(request, env, url);
   if (url.pathname === "/api/reservations" && request.method === "POST") return createReservation(request, env);

@@ -88,7 +88,7 @@
             <div class="hero-meta">
               <span><strong id="hero-document-count">10</strong> documentos disponibles</span>
               <span class="meta-dot"></span>
-              <span>Actualizado el 13 nov 2026</span>
+              <span id="hero-updated">Actualizado el 13 nov 2026</span>
             </div>
           </div>
 
@@ -98,7 +98,7 @@
             <div class="panel-stat-grid">
               <div><strong id="pdf-count">6</strong><span>PDF</span></div>
               <div><strong id="sheet-count">3</strong><span>Hojas de cálculo</span></div>
-              <div><strong>4</strong><span>Categorías</span></div>
+              <div><strong id="category-count">6</strong><span>Categorías</span></div>
             </div>
             <a class="panel-link" href="#documentos">Explorar biblioteca <span aria-hidden="true">↘</span></a>
           </aside>
@@ -122,9 +122,14 @@
               <button class="filter-chip" type="button" data-category="Seguros">Seguros</button>
               <button class="filter-chip" type="button" data-category="Reglamentos">Reglamentos</button>
               <button class="filter-chip" type="button" data-category="Legal">Legal</button>
+              <button class="filter-chip" type="button" data-category="Otros">Otros</button>
             </div>
 
             <div class="toolbar-actions">
+              <label class="library-search" for="library-document-search">
+                <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+                <input id="library-document-search" type="search" autocomplete="off" placeholder="Buscar por nombre…" />
+              </label>
               <label class="sort-control" for="sort-select">
                 <span>Ordenar</span>
                 <select id="sort-select">

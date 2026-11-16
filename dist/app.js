@@ -1,4 +1,4 @@
-const documents = [
+const legacyDocuments = [
   {
     name: "Escritura de constitución · Condominio Naia",
     description: "Documento constitutivo y marco registral del condominio.",
@@ -121,6 +121,8 @@ const documents = [
   },
 ];
 
+let documents = [...legacyDocuments];
+
 const state = {
   query: "",
   category: "Todos",
@@ -130,6 +132,7 @@ const state = {
 
 const list = document.querySelector("#document-list");
 const search = document.querySelector("#document-search");
+const librarySearch = document.querySelector("#library-document-search");
 const resultsCount = document.querySelector("#results-count");
 const clearFilters = document.querySelector("#clear-filters");
 const emptyState = document.querySelector("#empty-state");
@@ -141,6 +144,12 @@ const normalize = (value) => value
   .toLocaleLowerCase("es")
   .normalize("NFD")
   .replace(/[\u0300-\u036f]/g, "");
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>'"]/g, (character) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;",
+  })[character]);
+}
 
 function filteredDocuments() {
   const query = normalize(state.query.trim());
@@ -165,15 +174,15 @@ function documentTemplate(doc) {
   const fileClass = doc.type === "XLSX" ? "xlsx" : doc.type === "Imagen" ? "image" : "pdf";
   const fileLabel = doc.type === "Imagen" ? "IMG" : doc.type;
   return `
-    <a class="document-card" role="listitem" href="${doc.url}" target="_blank" rel="noopener" aria-label="Abrir ${doc.name}">
-      <span class="file-icon ${fileClass}" aria-hidden="true">${fileLabel}</span>
+    <a class="document-card" role="listitem" href="${escapeHtml(doc.url)}" target="_blank" rel="noopener" aria-label="Abrir ${escapeHtml(doc.name)}">
+      <span class="file-icon ${escapeHtml(fileClass)}" aria-hidden="true">${escapeHtml(fileLabel)}</span>
       <span class="document-primary">
-        <h3>${doc.name}</h3>
-        <p>${doc.description}</p>
+        <h3>${escapeHtml(doc.name)}</h3>
+        <p>${escapeHtml(doc.description)}</p>
       </span>
-      <span class="document-meta"><small>Actualizado</small><span>${doc.displayDate}</span></span>
-      <span class="document-meta"><small>Archivo</small><span>${doc.type} · ${doc.size}</span></span>
-      <span class="category-tag">${doc.category}</span>
+      <span class="document-meta"><small>Actualizado</small><span>${escapeHtml(doc.displayDate)}</span></span>
+      <span class="document-meta"><small>Archivo</small><span>${escapeHtml(doc.type)} · ${escapeHtml(doc.size)}</span></span>
+      <span class="category-tag">${escapeHtml(doc.category)}</span>
       <span class="open-button" aria-hidden="true">
         <svg viewBox="0 0 24 24"><path d="M7 17 17 7M9 7h8v8"/></svg>
       </span>
@@ -201,13 +210,19 @@ function resetFilters() {
   state.query = "";
   state.category = "Todos";
   search.value = "";
+  librarySearch.value = "";
   render();
 }
 
-search.addEventListener("input", (event) => {
-  state.query = event.target.value;
+function setSearchQuery(value) {
+  state.query = value;
+  search.value = value;
+  librarySearch.value = value;
   render();
-});
+}
+
+search.addEventListener("input", (event) => setSearchQuery(event.target.value));
+librarySearch.addEventListener("input", (event) => setSearchQuery(event.target.value));
 
 document.querySelectorAll(".filter-chip").forEach((button) => {
   button.addEventListener("click", () => {
@@ -239,10 +254,8 @@ document.addEventListener("keydown", (event) => {
     search.select();
   }
   if (event.key === "Escape" && document.activeElement === search) {
-    search.value = "";
-    state.query = "";
+    setSearchQuery("");
     search.blur();
-    render();
   }
 });
 
@@ -262,9 +275,36 @@ document.querySelectorAll(".future-link").forEach((button) => {
 document.querySelector("#toast-close").addEventListener("click", () => toast.classList.remove("visible"));
 document.querySelector(".resident-button")?.addEventListener("click", () => showToast("Perfil de residente"));
 
-document.querySelector("#hero-document-count").textContent = documents.length;
-document.querySelector("#all-count").textContent = documents.length;
-document.querySelector("#pdf-count").textContent = documents.filter((doc) => doc.type === "PDF").length;
-document.querySelector("#sheet-count").textContent = documents.filter((doc) => doc.type === "XLSX").length;
+function updateDocumentStats() {
+  document.querySelector("#hero-document-count").textContent = documents.length;
+  document.querySelector("#all-count").textContent = documents.length;
+  document.querySelector("#pdf-count").textContent = documents.filter((doc) => doc.type === "PDF").length;
+  document.querySelector("#sheet-count").textContent = documents.filter((doc) => ["XLS", "XLSX"].includes(doc.type)).length;
+  const categoryCount = document.querySelector("#category-count");
+  if (categoryCount) categoryCount.textContent = new Set(documents.map((doc) => doc.category)).size;
+  const updated = document.querySelector("#hero-updated");
+  if (updated && documents.length) {
+    const newest = documents.slice().sort((a, b) => b.date.localeCompare(a.date))[0];
+    updated.textContent = `Actualizado el ${newest.displayDate}`;
+  }
+}
 
+async function loadDocuments() {
+  try {
+    const response = await fetch("/api/documents", { headers: { Accept: "application/json" } });
+    if (!response.ok) throw new Error("documents_unavailable");
+    const payload = await response.json();
+    documents = Array.isArray(payload.documents) ? payload.documents : [];
+    updateDocumentStats();
+    render();
+  } catch (error) {
+    console.error("No se pudo actualizar el catálogo de documentos", error);
+  }
+}
+
+document.addEventListener("naia:authorization", (event) => {
+  if (event.detail.profile?.permissions.includes("documents.read")) void loadDocuments();
+});
+
+updateDocumentStats();
 render();

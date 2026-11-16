@@ -63,6 +63,19 @@
         </section>
 
         <div class="admin-workspace" id="admin-workspace" hidden>
+          <section class="invite-card document-admin-card" id="document-admin-card" hidden>
+            <div class="admin-card-heading"><div><p class="eyebrow">Biblioteca</p><h2>Publicar documento</h2></div><span>PDF, Office o imagen · máximo 30 MB</span></div>
+            <form id="document-upload-form" class="document-upload-form">
+              <label><span>Nombre visible</span><input name="name" maxlength="180" required /></label>
+              <label><span>Clasificación</span><select name="category" required><option value="Finanzas">Finanzas</option><option value="Presupuestos">Presupuestos</option><option value="Asambleas">Asambleas</option><option value="Seguros">Seguros</option><option value="Reglamentos">Reglamentos</option><option value="Legal">Legal</option><option value="Otros">Otros</option></select></label>
+              <label><span>Fecha del documento</span><input name="documentDate" type="date" required /></label>
+              <label class="wide-field"><span>Descripción</span><textarea name="description" rows="3" maxlength="600" placeholder="Breve explicación para los residentes"></textarea></label>
+              <label class="wide-field"><span>Palabras clave</span><input name="tags" placeholder="Ejemplo: seguro, póliza, INS" /></label>
+              <label class="wide-field document-file-field"><span>Archivo</span><input name="file" type="file" accept=".pdf,.xlsx,.xls,.docx,.doc,.png,.jpg,.jpeg,.webp" required /></label>
+              <div class="form-actions wide-field"><p id="document-upload-feedback" role="status"></p><button class="primary-action" type="submit">Publicar documento</button></div>
+            </form>
+          </section>
+
           <section class="invite-card">
             <div class="admin-card-heading"><div><p class="eyebrow">Nueva persona</p><h2>Invitar usuario</h2></div><span>La invitación vence en 30 días</span></div>
             <form id="invite-form" class="invite-form">

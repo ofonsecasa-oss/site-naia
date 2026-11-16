@@ -15,6 +15,9 @@ const housingForm = document.querySelector("#housing-form");
 const inviteUnit = document.querySelector("#invite-unit");
 const inviteHousingRelation = document.querySelector("#invite-housing-relation");
 const inviteHousingStart = document.querySelector("#invite-housing-start");
+const documentAdminCard = document.querySelector("#document-admin-card");
+const documentUploadForm = document.querySelector("#document-upload-form");
+const documentUploadFeedback = document.querySelector("#document-upload-feedback");
 
 let roles = [];
 let people = [];
@@ -42,6 +45,7 @@ function roleLabel(key) {
 
 function errorMessage(code) {
   return ({
+    invalid_document: "Completa los datos y selecciona un archivo compatible de hasta 30 MB.",
     email_already_exists: "Ya existe una persona con ese correo.",
     invitation_failed: "La persona se creó, pero Clerk no pudo enviar la invitación.",
     invalid_housing: "Selecciona una vivienda, relación y fecha válidas.",
@@ -137,6 +141,8 @@ document.addEventListener("naia:authorization", async (event) => {
 
   adminStatus.innerHTML = `<strong>Sesión autorizada.</strong><p>${escapeHtml(profile.person.first_name)}, los cambios de funciones se aplican inmediatamente.</p>`;
   adminWorkspace.hidden = false;
+  documentAdminCard.hidden = !profile.permissions.includes("documents.manage");
+  documentUploadForm.elements.documentDate.value = currentCostaRicaDate();
   try {
     await Promise.all([loadRoles(), loadHousingUnits(), loadPeople()]);
   } catch (loadError) {
@@ -147,6 +153,29 @@ document.addEventListener("naia:authorization", async (event) => {
 bootstrapButton.addEventListener("click", initializeAdmin);
 document.querySelector("#refresh-people").addEventListener("click", loadPeople);
 inviteUnit.addEventListener("change", syncInviteHousingFields);
+
+documentUploadForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const submit = documentUploadForm.querySelector("button[type='submit']");
+  submit.disabled = true;
+  documentUploadFeedback.textContent = "Subiendo y publicando documento…";
+  try {
+    const response = await fetch("/api/admin/documents", {
+      method: "POST",
+      headers: { Accept: "application/json" },
+      body: new FormData(documentUploadForm),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(errorMessage(payload.error));
+    documentUploadForm.reset();
+    documentUploadForm.elements.documentDate.value = currentCostaRicaDate();
+    documentUploadFeedback.textContent = "Documento publicado correctamente.";
+  } catch (error) {
+    documentUploadFeedback.textContent = error.message;
+  } finally {
+    submit.disabled = false;
+  }
+});
 
 inviteForm.addEventListener("submit", async (event) => {
   event.preventDefault();
